@@ -19,10 +19,10 @@ const fileSizeHeader = "x-filesharing-file-size"
 const formDataPartName = "file_to_upload"
 
 type PostOperation struct {
-	repository *ChannelRepository
+	repository *PendingFileshareRepository
 }
 
-func NewPostOperation(repository *ChannelRepository) PostOperation {
+func NewPostOperation(repository *PendingFileshareRepository) PostOperation {
 	return PostOperation{
 		repository: repository,
 	}
@@ -74,7 +74,7 @@ func (o *PostOperation) Post(ctx context.Context, w http.ResponseWriter, resourc
 		return &BadRequestError{Err: readErr}
 	}
 
-	c := Channel{
+	c := PendingFileshare{
 		RawConn:  rawConn,
 		FileSize: int(fileSize),
 		FileName: filename,

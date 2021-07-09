@@ -14,10 +14,10 @@ import (
 )
 
 type GetOperation struct {
-	repository *ChannelRepository
+	repository *PendingFileshareRepository
 }
 
-func NewGetOperation(repository *ChannelRepository) GetOperation {
+func NewGetOperation(repository *PendingFileshareRepository) GetOperation {
 	return GetOperation{
 		repository: repository,
 	}
@@ -26,14 +26,14 @@ func NewGetOperation(repository *ChannelRepository) GetOperation {
 func (o *GetOperation) Get(ctx context.Context, w http.ResponseWriter, resourceName string) error {
 	log.Printf("GET for %q", resourceName)
 
-	channel, ok := o.repository.GetAndDelete(resourceName)
+	fileshare, ok := o.repository.GetAndDelete(resourceName)
 	if !ok {
 		return &BadRequestError{Err: fmt.Errorf("resource %q is not found", resourceName)}
 	}
 
 	var buf bytes.Buffer
 	buf.WriteString("HTTP/1.1 200 OK\r\n")
-	buf.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=%s\r\n", channel.FileName))
+	buf.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=%s\r\n", fileshare.FileName))
 	buf.WriteString("Content-Type: application/octet-stream\r\n")
 	buf.WriteString("\r\n")
 
@@ -56,8 +56,8 @@ func (o *GetOperation) Get(ctx context.Context, w http.ResponseWriter, resourceN
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		bytesLeft := channel.FileSize
-		return doSyscallOperation(channel.RawConn.Read, func(uploaderFd int) error {
+		bytesLeft := fileshare.FileSize
+		return doSyscallOperation(fileshare.RawConn.Read, func(uploaderFd int) error {
 			defer closeFd(uploaderFd)
 			for bytesLeft > 0 {
 				n, err := splice(uploaderFd, writePipe, bytesLeft)
@@ -79,7 +79,7 @@ func (o *GetOperation) Get(ctx context.Context, w http.ResponseWriter, resourceN
 	})
 
 	g.Go(func() error {
-		bytesLeft := channel.FileSize
+		bytesLeft := fileshare.FileSize
 		return doSyscallOperation(downloaderRawConn.Write, func(downloaderFd int) error {
 			defer closeFd(downloaderFd)
 			_, err := syscall.Write(downloaderFd, buf.Bytes())

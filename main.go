@@ -8,7 +8,7 @@ import (
 
 func app(ctx context.Context) error {
 	var (
-		repository = internal.NewChannelRepository()
+		repository = internal.NewPendingFileshareRepository()
 		get        = internal.NewGetOperation(&repository)
 		post       = internal.NewPostOperation(&repository)
 		h          = internal.NewHandler(&get, &post)
