@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Share files</title>
+</head>
+<body>
+<form action="/api/test" method="post" enctype="multipart/form-data">
+    <input type="file" name="myfile">
+    <input type="submit" value="Upload" name="submit">
+</form>
+<script type="text/javascript">
+    const form = document.querySelector('form')
+    const onSubmit = async (e) => {
+        e.preventDefault()
+        const files = document.querySelector('[type=file]').files;
+
+        console.assert(files.length === 1 || files.length === 0, "unexpected files length" )
+        if(files.length === 0) {
+            console.log("No file selected, will not submit")
+            return
+        }
+        const file = files[0];
+        const {size} = file;
+
+        console.log(`File size: ${size} bytes`);
+
+        const formData = new FormData();
+        formData.append("file_to_upload", file);
+
+        const result = await fetch('/api/test', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'x-filesharing-file-size': size
+            }
+        })
+
+        console.log(result)
+    }
+    form.addEventListener('submit', e => onSubmit(e))
+</script>
+</body>
+</html>
