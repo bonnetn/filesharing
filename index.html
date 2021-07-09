@@ -7,12 +7,11 @@
 <body>
 <form action="/api/test" method="post" enctype="multipart/form-data">
     <input type="file" name="myfile">
-    <input type="submit" value="Upload" name="submit">
 </form>
+<div id="msg"></div>
 <script type="text/javascript">
     const form = document.querySelector('form')
-    const onSubmit = async (e) => {
-        e.preventDefault()
+    const submit = async () => {
         const files = document.querySelector('[type=file]').files;
 
         console.assert(files.length === 1 || files.length === 0, "unexpected files length" )
@@ -21,24 +20,41 @@
             return
         }
         const file = files[0];
-        const {size} = file;
+        const {size, name} = file;
 
+        console.log(`Uploading ${name}`)
         console.log(`File size: ${size} bytes`);
+
+        const fileChooser = document.querySelector('form')
+        fileChooser.style.visibility='hidden';
+
+        const msg = document.querySelector('[id=msg]')
+        const link = window.location.href;
+        msg.innerHTML = `Uploading <strong>${name}</strong>... Give this link to your friend: <a href="${link}">${link}</a>`
 
         const formData = new FormData();
         formData.append("file_to_upload", file);
 
-        const result = await fetch('/api/test', {
+        const result = await fetch(window.location.href, {
             method: 'POST',
             body: formData,
             headers: {
                 'x-filesharing-file-size': size
             }
         })
-
-        console.log(result)
+        console.log(`Upload is done!`);
+        msg.innerHTML = `Upload is done!`
     }
+
+    const onSubmit = (e) => {
+        e.preventDefault()
+        submit()
+    }
+
     form.addEventListener('submit', e => onSubmit(e))
+    document.querySelector('[type=file]').onchange = () => {
+        submit()
+    }
 </script>
 </body>
 </html>

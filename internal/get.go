@@ -29,7 +29,7 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 
 	fileshare, ok := o.repository.GetAndDelete(resourceName)
 	if !ok {
-		return &BadRequestError{Err: fmt.Errorf("resource %q is not found", resourceName)}
+		return &NotFoundError{Err: fmt.Errorf("resource %q is not found", resourceName)}
 	}
 	defer fileshare.Conn.Close()
 
@@ -55,7 +55,7 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 		return &LogOnlyError{Err: fmt.Errorf("could not copy data: %v", err)}
 	}
 
-	_, err = tcpDownloaderConn.Write([]byte(httpPayloadForSuccessfulUpload))
+	_, err = fileshare.Conn.Write(httpPayloadForSuccessfulUpload)
 	if err != nil {
 		return &LogOnlyError{Err: fmt.Errorf("could not send success response to uploader: %v", err)}
 	}
@@ -72,4 +72,4 @@ func httpPreludeForFileDownload(filename string) []byte {
 	return buf.Bytes()
 }
 
-const httpPayloadForSuccessfulUpload = "HTTP/1.1 204 No Content\r\n\r\n"
+var httpPayloadForSuccessfulUpload = []byte("HTTP/1.1 204 No Content\r\n\r\n")

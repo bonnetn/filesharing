@@ -8,22 +8,17 @@ import (
 )
 
 const (
-	routeAPI = "/api/"
+	routeAPI = "/"
 )
 
 func NewHandler(get FileshareGetter, create FileshareCreator) http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "favicon.ico")
+	})
 	mux.HandleFunc(routeAPI, func(w http.ResponseWriter, r *http.Request) {
 		serveHTTP(get, create, w, r)
 	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		if req.URL.Path != "/" {
-			http.NotFound(w, req)
-			return
-		}
-		http.ServeFile(w, req, "index.html")
-	})
-
 	return mux
 }
 
@@ -44,10 +39,10 @@ func serveHTTP(get FileshareGetter, create FileshareCreator, w http.ResponseWrit
 		return
 	}
 
-	writeErrors(w, err)
+	writeErrors(w, r, err)
 }
 
-func writeErrors(w http.ResponseWriter, err error) {
+func writeErrors(w http.ResponseWriter, req *http.Request, err error) {
 	if err == nil {
 		return
 	}
@@ -55,11 +50,14 @@ func writeErrors(w http.ResponseWriter, err error) {
 	log.Printf("error: %v", err)
 	switch {
 	case errors.Is(err, &LogOnlyError{}):
-		return
+		return // Don't do anything.
+
 	case errors.Is(err, &BadRequestError{}):
 		http.Error(w, err.Error(), http.StatusBadRequest)
+
 	case errors.Is(err, &NotFoundError{}):
-		http.Error(w, err.Error(), http.StatusNotFound)
+		http.ServeFile(w, req, "index.html") // If the resource is not found, redirect the user to the form.
+
 	default:
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
