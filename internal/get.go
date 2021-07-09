@@ -27,6 +27,7 @@ type get struct {
 	repository PendingFileshareGetter
 }
 
+// Get retrieves a pending fileshare and send the response to the caller.
 func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName string) error {
 	log.Printf("Get for %q", resourceName)
 
@@ -35,13 +36,7 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 		return &BadRequestError{Err: fmt.Errorf("resource %q is not found", resourceName)}
 	}
 
-	var buf bytes.Buffer
-	buf.WriteString("HTTP/1.1 200 OK\r\n")
-	buf.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=%s\r\n", fileshare.FileName))
-	buf.WriteString("Content-Type: application/octet-stream\r\n")
-	buf.WriteString("\r\n")
-
-	readPipe, writePipe, err := openPipes()
+	readPipe, writePipe, err := createPipe()
 	if err != nil {
 		return fmt.Errorf("could not open pipe: %w", err)
 	}
@@ -52,6 +47,14 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 		return err
 	}
 
+	if err := o.get(ctx, downloaderConn, fileshare, readPipe, writePipe); err != nil {
+		// NOTE: We cannot return an error to the user here since we hijacked the connection.
+		log.Printf("get failed: %v", err)
+	}
+	return nil
+}
+
+func (o *get) get(ctx context.Context, downloaderConn net.Conn, fileshare PendingFileshare, readPipe, writePipe int) error {
 	downloaderRawConn, err := extractRawConn(downloaderConn)
 	if err != nil {
 		return err
@@ -71,10 +74,7 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 				bytesLeft -= int(n)
 			}
 
-			var buf bytes.Buffer
-			buf.WriteString("HTTP/1.1 204 No Content\r\n")
-			buf.WriteString("\r\n")
-			_, err := syscall.Write(uploaderFd, buf.Bytes())
+			_, err := syscall.Write(uploaderFd, httpPreludeForFileUpload())
 			if err != nil {
 				return fmt.Errorf("could not write: %w", err)
 			}
@@ -86,7 +86,7 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 		bytesLeft := fileshare.FileSize
 		return doSyscallOperation(downloaderRawConn.Write, func(downloaderFd int) error {
 			defer closeFd(downloaderFd)
-			_, err := syscall.Write(downloaderFd, buf.Bytes())
+			_, err := syscall.Write(downloaderFd, httpPreludeForFileDownload(fileshare.FileName))
 			if err != nil {
 				return fmt.Errorf("could not write: %w", err)
 			}
@@ -101,14 +101,11 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 			return nil
 		})
 	})
-	if err := g.Wait(); err != nil {
-		log.Printf("error while transfering: %w", err)
-	}
-	// We can't return any error the the user because we already started transferring things on the connection.
-	return nil
+	return g.Wait()
 
 }
 
+// hijackConnection takes ownership of underlying net.Conn.
 func hijackConnection(w http.ResponseWriter) (net.Conn, error) {
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
@@ -122,6 +119,7 @@ func hijackConnection(w http.ResponseWriter) (net.Conn, error) {
 	return conn, nil
 }
 
+// extractRawConn extracts the syscall.RawConn from a net.Conn.
 func extractRawConn(conn net.Conn) (syscall.RawConn, error) {
 	syscallConn, ok := conn.(syscall.Conn)
 	if !ok {
@@ -136,7 +134,8 @@ func extractRawConn(conn net.Conn) (syscall.RawConn, error) {
 	return rawConn, nil
 }
 
-func openPipes() (int, int, error) {
+// createPipe creates a pipe (Unix).
+func createPipe() (int, int, error) {
 	var pipefd [2]int
 	err := syscall.Pipe(pipefd[:])
 	if err != nil {
@@ -145,6 +144,7 @@ func openPipes() (int, int, error) {
 	return pipefd[0], pipefd[1], nil
 }
 
+// splice calls the splice syscall.
 func splice(from, to, length int) (int64, error) {
 	n, err := syscall.Splice(from, nil, to, nil, length, unix.SPLICE_F_MOVE)
 	if err != nil {
@@ -199,3 +199,20 @@ func closeFd(fd int) {
 		log.Printf("could not close connection: %w", err)
 	}
 }
+
+func httpPreludeForFileDownload(filename string) []byte {
+	var buf bytes.Buffer
+	buf.WriteString("HTTP/1.1 200 OK\r\n")
+	buf.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=%s\r\n", filename))
+	buf.WriteString("Content-Type: application/octet-stream\r\n")
+	buf.WriteString("\r\n")
+	return buf.Bytes()
+}
+
+func httpPreludeForFileUpload() []byte {
+	var buf bytes.Buffer
+	buf.WriteString("HTTP/1.1 204 No Content\r\n")
+	buf.WriteString("\r\n")
+	return buf.Bytes()
+}
+

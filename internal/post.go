@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"net/textproto"
 	"strconv"
@@ -34,6 +35,7 @@ type create struct {
 	repository PendingFileshareSetter
 }
 
+// Create makes a new pending fileshare.
 func (o *create) Create(ctx context.Context, w http.ResponseWriter, resourceName string, r *http.Request) error {
 	log.Printf("Create %q", resourceName)
 
@@ -52,6 +54,15 @@ func (o *create) Create(ctx context.Context, w http.ResponseWriter, resourceName
 		return err
 	}
 
+	if err := o.create(ctx, conn, resourceName, fileSize, boundary); err != nil {
+		// NOTE: We cannot return an error to the user here since we hijacked the connection.
+		log.Printf("create failed: %v", err)
+	}
+
+	return nil
+}
+
+func (o *create) create(ctx context.Context, conn net.Conn, resourceName string, fileSize uint64, boundary string) error {
 	rawConn, err := extractRawConn(conn)
 	if err != nil {
 		return err
@@ -91,6 +102,7 @@ func (o *create) Create(ctx context.Context, w http.ResponseWriter, resourceName
 	return nil
 }
 
+// skipBoundary skips the first line of formdata.
 func skipBoundary(fd int, boundary string) error {
 	firstLine, err := readLine(fd)
 	if err != nil {
@@ -104,6 +116,7 @@ func skipBoundary(fd int, boundary string) error {
 	return nil
 }
 
+// skipFormDataHeaders skips the formdata headers.
 func skipFormDataHeaders(fd int) (string, error) {
 	var rawPartHeaders bytes.Buffer
 	for {
@@ -146,6 +159,7 @@ func skipFormDataHeaders(fd int) (string, error) {
 	return filename, nil
 }
 
+// extractFileSize retrieves the file size (in bytes) from the request headers.
 func extractFileSize(headers http.Header) (uint64, error) {
 	fileSizeStr := headers.Get(fileSizeHeader)
 	if fileSizeStr == "" {
@@ -160,6 +174,7 @@ func extractFileSize(headers http.Header) (uint64, error) {
 	return fileSize, nil
 }
 
+// extractFormDataBoundary extract the boundary for the fromdata from the request headers.
 func extractFormDataBoundary(headers http.Header) (string, error) {
 	v := headers.Get("Content-Type")
 	if v == "" {
@@ -179,6 +194,7 @@ func extractFormDataBoundary(headers http.Header) (string, error) {
 	return boundary, nil
 }
 
+// readLine read a line from the file descriptor without buffering.
 func readLine(fd int) ([]byte, error) {
 	var (
 		line = make([]byte, 0, 64)
