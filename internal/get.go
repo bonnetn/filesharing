@@ -40,7 +40,6 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 	if err != nil {
 		return fmt.Errorf("could not open pipe: %w", err)
 	}
-	defer cleanupPipe(readPipe, writePipe)
 
 	downloaderConn, err := hijackConnection(w)
 	if err != nil {
@@ -65,7 +64,6 @@ func (o *get) get(ctx context.Context, downloaderConn net.Conn, fileshare Pendin
 	g.Go(func() error {
 		bytesLeft := fileshare.FileSize
 		return doSyscallOperation(fileshare.RawConn.Read, func(uploaderFd int) error {
-			defer closeFd(uploaderFd)
 			for bytesLeft > 0 {
 				n, err := splice(uploaderFd, writePipe, bytesLeft)
 				if err != nil {
@@ -74,10 +72,13 @@ func (o *get) get(ctx context.Context, downloaderConn net.Conn, fileshare Pendin
 				bytesLeft -= int(n)
 			}
 
-			_, err := syscall.Write(uploaderFd, httpPreludeForFileUpload())
+			_, err := syscall.Write(uploaderFd, httpPayloadForSuccessfulUpload())
 			if err != nil {
 				return fmt.Errorf("could not write: %w", err)
 			}
+
+			closeFd(uploaderFd)
+			closeFd(writePipe)
 			return nil
 		})
 	})
@@ -85,7 +86,6 @@ func (o *get) get(ctx context.Context, downloaderConn net.Conn, fileshare Pendin
 	g.Go(func() error {
 		bytesLeft := fileshare.FileSize
 		return doSyscallOperation(downloaderRawConn.Write, func(downloaderFd int) error {
-			defer closeFd(downloaderFd)
 			_, err := syscall.Write(downloaderFd, httpPreludeForFileDownload(fileshare.FileName))
 			if err != nil {
 				return fmt.Errorf("could not write: %w", err)
@@ -98,6 +98,8 @@ func (o *get) get(ctx context.Context, downloaderConn net.Conn, fileshare Pendin
 				}
 				bytesLeft -= int(n)
 			}
+			closeFd(readPipe)
+			closeFd(downloaderFd)
 			return nil
 		})
 	})
@@ -209,7 +211,7 @@ func httpPreludeForFileDownload(filename string) []byte {
 	return buf.Bytes()
 }
 
-func httpPreludeForFileUpload() []byte {
+func httpPayloadForSuccessfulUpload() []byte {
 	var buf bytes.Buffer
 	buf.WriteString("HTTP/1.1 204 No Content\r\n")
 	buf.WriteString("\r\n")
