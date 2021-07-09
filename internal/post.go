@@ -87,7 +87,7 @@ func skipBoundary(reader io.Reader, boundary string) error {
 	}
 
 	if strings.Compare(string(firstLine), "--"+boundary) != 0 {
-		return errors.New("wrong boundary")
+		return fmt.Errorf("wrong boundary, expected %q, got %q", boundary, string(firstLine))
 	}
 
 	return nil
