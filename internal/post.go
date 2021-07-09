@@ -18,18 +18,18 @@ import (
 const fileSizeHeader = "x-filesharing-file-size"
 const formDataPartName = "file_to_upload"
 
-type PostOperation struct {
+type CreateOperation struct {
 	repository *PendingFileshareRepository
 }
 
-func NewPostOperation(repository *PendingFileshareRepository) PostOperation {
-	return PostOperation{
+func NewCreateOperation(repository *PendingFileshareRepository) CreateOperation {
+	return CreateOperation{
 		repository: repository,
 	}
 }
 
-func (o *PostOperation) Post(ctx context.Context, w http.ResponseWriter, resourceName string, r *http.Request) error {
-	log.Printf("POST for %q", resourceName)
+func (o *CreateOperation) Create(ctx context.Context, w http.ResponseWriter, resourceName string, r *http.Request) error {
+	log.Printf("Create %q", resourceName)
 
 	fileSize, err := extractFileSize(r.Header)
 	if err != nil {

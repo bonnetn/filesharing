@@ -24,7 +24,7 @@ func NewGetOperation(repository *PendingFileshareRepository) GetOperation {
 }
 
 func (o *GetOperation) Get(ctx context.Context, w http.ResponseWriter, resourceName string) error {
-	log.Printf("GET for %q", resourceName)
+	log.Printf("Get for %q", resourceName)
 
 	fileshare, ok := o.repository.GetAndDelete(resourceName)
 	if !ok {

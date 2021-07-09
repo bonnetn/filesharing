@@ -10,7 +10,7 @@ const (
 	routeAPI = "/api/"
 )
 
-func NewHandler(get *GetOperation, post *PostOperation) http.Handler {
+func NewHandler(get *GetOperation, post *CreateOperation) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(routeAPI, func(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +27,7 @@ func NewHandler(get *GetOperation, post *PostOperation) http.Handler {
 	return mux
 }
 
-func serveHTTP(get *GetOperation, post *PostOperation, w http.ResponseWriter, r *http.Request) {
+func serveHTTP(get *GetOperation, post *CreateOperation, w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	resourceName := strings.TrimPrefix(path, routeAPI)
 
@@ -37,7 +37,7 @@ func serveHTTP(get *GetOperation, post *PostOperation, w http.ResponseWriter, r 
 		err = get.Get(r.Context(), w, resourceName)
 
 	case http.MethodPost:
-		err = post.Post(r.Context(), w, resourceName, r)
+		err = post.Create(r.Context(), w, resourceName, r)
 
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
