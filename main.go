@@ -9,9 +9,9 @@ import (
 func app(ctx context.Context) error {
 	var (
 		repository = internal.NewPendingFileshareRepository()
-		get        = internal.NewGetOperation(&repository)
-		post       = internal.NewCreateOperation(&repository)
-		h          = internal.NewHandler(&get, &post)
+		get        = internal.NewGetOperation(repository)
+		post       = internal.NewCreateOperation(repository)
+		h          = internal.NewHandler(get, post)
 	)
 	return internal.RunServer(ctx, h)
 }

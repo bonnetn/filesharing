@@ -10,11 +10,10 @@ const (
 	routeAPI = "/api/"
 )
 
-func NewHandler(get *GetOperation, post *CreateOperation) http.Handler {
-
+func NewHandler(get FileshareGetter, create FileshareCreator) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(routeAPI, func(w http.ResponseWriter, r *http.Request) {
-		serveHTTP(get, post, w, r)
+		serveHTTP(get, create, w, r)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path != "/" {
@@ -27,7 +26,7 @@ func NewHandler(get *GetOperation, post *CreateOperation) http.Handler {
 	return mux
 }
 
-func serveHTTP(get *GetOperation, post *CreateOperation, w http.ResponseWriter, r *http.Request) {
+func serveHTTP(get FileshareGetter, create FileshareCreator, w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	resourceName := strings.TrimPrefix(path, routeAPI)
 
@@ -37,7 +36,7 @@ func serveHTTP(get *GetOperation, post *CreateOperation, w http.ResponseWriter, 
 		err = get.Get(r.Context(), w, resourceName)
 
 	case http.MethodPost:
-		err = post.Create(r.Context(), w, resourceName, r)
+		err = create.Create(r.Context(), w, resourceName, r)
 
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)

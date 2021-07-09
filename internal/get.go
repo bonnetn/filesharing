@@ -13,17 +13,21 @@ import (
 	"syscall"
 )
 
-type GetOperation struct {
-	repository *PendingFileshareRepository
+type FileshareGetter interface {
+	Get(ctx context.Context, w http.ResponseWriter, resourceName string) error
 }
 
-func NewGetOperation(repository *PendingFileshareRepository) GetOperation {
-	return GetOperation{
+func NewGetOperation(repository PendingFileshareGetter) FileshareGetter {
+	return &get{
 		repository: repository,
 	}
 }
 
-func (o *GetOperation) Get(ctx context.Context, w http.ResponseWriter, resourceName string) error {
+type get struct {
+	repository PendingFileshareGetter
+}
+
+func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName string) error {
 	log.Printf("Get for %q", resourceName)
 
 	fileshare, ok := o.repository.GetAndDelete(resourceName)

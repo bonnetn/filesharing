@@ -15,20 +15,26 @@ import (
 	"syscall"
 )
 
-const fileSizeHeader = "x-filesharing-file-size"
-const formDataPartName = "file_to_upload"
+const (
+	fileSizeHeader   = "x-filesharing-file-size"
+	formDataPartName = "file_to_upload"
+)
 
-type CreateOperation struct {
-	repository *PendingFileshareRepository
+type FileshareCreator interface {
+	Create(ctx context.Context, w http.ResponseWriter, resourceName string, r *http.Request) error
 }
 
-func NewCreateOperation(repository *PendingFileshareRepository) CreateOperation {
-	return CreateOperation{
+func NewCreateOperation(repository PendingFileshareSetter) FileshareCreator {
+	return &create{
 		repository: repository,
 	}
 }
 
-func (o *CreateOperation) Create(ctx context.Context, w http.ResponseWriter, resourceName string, r *http.Request) error {
+type create struct {
+	repository PendingFileshareSetter
+}
+
+func (o *create) Create(ctx context.Context, w http.ResponseWriter, resourceName string, r *http.Request) error {
 	log.Printf("Create %q", resourceName)
 
 	fileSize, err := extractFileSize(r.Header)

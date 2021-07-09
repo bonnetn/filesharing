@@ -2,27 +2,33 @@ package internal
 
 import (
 	"sync"
-	"syscall"
 )
 
-type PendingFileshare struct {
-	RawConn  syscall.RawConn
-	FileSize int
-	FileName string
+type PendingFileshareRepository interface {
+	PendingFileshareGetter
+	PendingFileshareSetter
 }
 
-type PendingFileshareRepository struct {
+type PendingFileshareGetter interface {
+	GetAndDelete(key string) (PendingFileshare, bool)
+}
+
+type PendingFileshareSetter interface {
+	Set(string, PendingFileshare) bool
+}
+
+func NewPendingFileshareRepository() PendingFileshareRepository {
+	return &inMemoryFileshareRepository{}
+}
+
+type inMemoryFileshareRepository struct {
 	sync.Mutex
 
 	pendingFileshares map[string]PendingFileshare
 }
 
-func NewPendingFileshareRepository() PendingFileshareRepository {
-	return PendingFileshareRepository{}
-}
-
 // GetAndDelete retrieves a PendingFileshare from the repository and then deletes it.
-func (r *PendingFileshareRepository) GetAndDelete(key string) (PendingFileshare, bool) {
+func (r *inMemoryFileshareRepository) GetAndDelete(key string) (PendingFileshare, bool) {
 	r.Lock()
 	defer r.Unlock()
 
@@ -37,7 +43,7 @@ func (r *PendingFileshareRepository) GetAndDelete(key string) (PendingFileshare,
 
 // Set adds a new PendingFileshare in the repository.
 // If the key already exists, it returns false, otherwise it returns true.
-func (r *PendingFileshareRepository) Set(key string, fd PendingFileshare) bool {
+func (r *inMemoryFileshareRepository) Set(key string, fd PendingFileshare) bool {
 	r.Lock()
 	defer r.Unlock()
 
