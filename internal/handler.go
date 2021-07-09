@@ -2,6 +2,7 @@ package internal
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -47,8 +48,13 @@ func serveHTTP(get FileshareGetter, create FileshareCreator, w http.ResponseWrit
 }
 
 func writeErrors(w http.ResponseWriter, err error) {
+	if err == nil {
+		return
+	}
+
+	log.Printf("error: %v", err)
 	switch {
-	case err == nil:
+	case errors.Is(err, &LogOnlyError{}):
 		return
 	case errors.Is(err, &BadRequestError{}):
 		http.Error(w, err.Error(), http.StatusBadRequest)

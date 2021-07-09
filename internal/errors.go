@@ -12,14 +12,12 @@ func (e *BadRequestError) Error() string {
 	return fmt.Sprintf("bad request: %s", e.Err.Error())
 }
 
-
 func (e *BadRequestError) Unwrap() error { return e.Err }
 
 func (e *BadRequestError) Is(target error) bool {
 	_, ok := target.(*BadRequestError)
 	return ok
 }
-
 
 // NotFoundError represents a resource not found error.
 type NotFoundError struct {
@@ -31,7 +29,6 @@ func (e *NotFoundError) Error() string {
 	return fmt.Sprintf("not found: %s", e.Err.Error())
 }
 
-
 func (e *NotFoundError) Unwrap() error { return e.Err }
 
 func (e *NotFoundError) Is(target error) bool {
@@ -39,4 +36,19 @@ func (e *NotFoundError) Is(target error) bool {
 	return ok
 }
 
+// LogOnlyError represents an error that should only be logged, and not sent to the caller.
+type LogOnlyError struct {
+	Err error
+}
 
+// Error implements the error interface.
+func (e *LogOnlyError) Error() string {
+	return fmt.Sprintf("not found: %s", e.Err.Error())
+}
+
+func (e *LogOnlyError) Unwrap() error { return e.Err }
+
+func (e *LogOnlyError) Is(target error) bool {
+	_, ok := target.(*LogOnlyError)
+	return ok
+}

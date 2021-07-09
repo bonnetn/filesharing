@@ -1,11 +1,13 @@
 package internal
 
-import "syscall"
+import (
+	"net"
+)
 
 // PendingFileshare is a fileshare that is yet to be downloaded.
 // This is created when a user updates a file, and deleted once another user downloaded it.
 type PendingFileshare struct {
-	RawConn  syscall.RawConn
-	FileSize int
+	Conn  *net.TCPConn
+	FileSize int64
 	FileName string
 }

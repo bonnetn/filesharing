@@ -6,14 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"mime"
-	"net"
 	"net/http"
 	"net/textproto"
 	"strconv"
 	"strings"
-	"syscall"
 )
 
 const (
@@ -54,57 +53,35 @@ func (o *create) Create(ctx context.Context, w http.ResponseWriter, resourceName
 		return err
 	}
 
-	if err := o.create(ctx, conn, resourceName, fileSize, boundary); err != nil {
-		// NOTE: We cannot return an error to the user here since we hijacked the connection.
-		log.Printf("create failed: %v", err)
-	}
-
-	return nil
-}
-
-func (o *create) create(ctx context.Context, conn net.Conn, resourceName string, fileSize uint64, boundary string) error {
-	rawConn, err := extractRawConn(conn)
+	tcpConn, err := extractTCPConn(conn)
 	if err != nil {
 		return err
 	}
 
-	var (
-		readErr  error
-		filename string
-	)
-	err = rawConn.Read(func(fd uintptr) (done bool) {
-		if readErr = skipBoundary(int(fd), boundary); readErr != nil {
-			return true
-		}
-
-		filename, readErr = skipFormDataHeaders(int(fd))
-		if readErr != nil {
-			return true
-		}
-
-		return true
-	})
-	if err != nil {
-		return fmt.Errorf("could not read from raw connection: %w", err)
+	if err := skipBoundary(tcpConn, boundary); err != nil {
+		return &LogOnlyError{Err: &BadRequestError{Err: err}}
 	}
-	if readErr != nil {
-		return &BadRequestError{Err: readErr}
+
+	filename, err := skipFormDataHeaders(tcpConn)
+	if err != nil {
+		return &LogOnlyError{Err: err}
 	}
 
 	c := PendingFileshare{
-		RawConn:  rawConn,
-		FileSize: int(fileSize),
+		Conn:     tcpConn,
+		FileSize: fileSize,
 		FileName: filename,
 	}
+
 	if !o.repository.Set(resourceName, c) {
-		return &BadRequestError{Err: fmt.Errorf("there is already a file waiting to be downloaded for %q", resourceName)}
+		return &LogOnlyError{Err: fmt.Errorf("there is already a resource with name %q", resourceName)}
 	}
 	return nil
 }
 
 // skipBoundary skips the first line of formdata.
-func skipBoundary(fd int, boundary string) error {
-	firstLine, err := readLine(fd)
+func skipBoundary(reader io.Reader, boundary string) error {
+	firstLine, err := readLine(reader)
 	if err != nil {
 		return fmt.Errorf("couldn't read line: %w", err)
 	}
@@ -117,10 +94,10 @@ func skipBoundary(fd int, boundary string) error {
 }
 
 // skipFormDataHeaders skips the formdata headers.
-func skipFormDataHeaders(fd int) (string, error) {
+func skipFormDataHeaders(reader io.Reader) (string, error) {
 	var rawPartHeaders bytes.Buffer
 	for {
-		line, err := readLine(fd)
+		line, err := readLine(reader)
 		if err != nil {
 			return "", fmt.Errorf("couldn't read line: %w", err)
 		}
@@ -160,15 +137,19 @@ func skipFormDataHeaders(fd int) (string, error) {
 }
 
 // extractFileSize retrieves the file size (in bytes) from the request headers.
-func extractFileSize(headers http.Header) (uint64, error) {
+func extractFileSize(headers http.Header) (int64, error) {
 	fileSizeStr := headers.Get(fileSizeHeader)
 	if fileSizeStr == "" {
 		return 0, fmt.Errorf("%q header is required", fileSizeHeader)
 	}
 
-	fileSize, err := strconv.ParseUint(fileSizeStr, 10, 64)
+	fileSize, err := strconv.ParseInt(fileSizeStr, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("%q is not a valid positive integer for %q header", fileSizeStr, fileSizeHeader)
+		return 0, fmt.Errorf("%q is not a valid positive integer for %q header: %w", fileSizeStr, fileSizeHeader, err)
+	}
+
+	if fileSize < 0 {
+		return 0, errors.New("file size must be a positive integer")
 	}
 
 	return fileSize, nil
@@ -194,15 +175,15 @@ func extractFormDataBoundary(headers http.Header) (string, error) {
 	return boundary, nil
 }
 
-// readLine read a line from the file descriptor without buffering.
-func readLine(fd int) ([]byte, error) {
+// readLine read a line from the connection without buffering.
+func readLine(reader io.Reader) ([]byte, error) {
 	var (
 		line = make([]byte, 0, 64)
 		c    [1]byte
 	)
 
 	for {
-		n, err := syscall.Read(fd, c[:])
+		n, err := reader.Read(c[:])
 		if err != nil {
 			return nil, fmt.Errorf("could not read byte: %w", err)
 		}
