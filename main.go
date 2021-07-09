@@ -11,9 +11,9 @@ func app(ctx context.Context) error {
 		repository = internal.NewPendingFileshareRepository()
 		get        = internal.NewGetOperation(repository)
 		post       = internal.NewCreateOperation(repository)
-		h          = internal.NewHandler(get, post)
+		handler    = internal.NewHandler(get, post)
 	)
-	return internal.RunServer(ctx, h)
+	return internal.RunServer(ctx, handler)
 }
 
 func main() {
