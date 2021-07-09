@@ -2,17 +2,18 @@ package main
 
 import (
 	"context"
-	"github.com/bonnetn/filesharing/endpoint"
-	"github.com/bonnetn/filesharing/handler"
-	"github.com/bonnetn/filesharing/server"
+	"github.com/bonnetn/filesharing/internal"
 	"log"
 )
 
 func app(ctx context.Context) error {
-	r := endpoint.ChannelRepository{}
-	c := endpoint.ConnectionController{Repository: &r}
-	h := handler.NewHandler(&c)
-	return server.Run(ctx, h)
+	var (
+		repository = internal.NewChannelRepository()
+		get        = internal.NewGetOperation(&repository)
+		post       = internal.NewPostOperation(&repository)
+		h          = internal.NewHandler(&get, &post)
+	)
+	return internal.RunServer(ctx, h)
 }
 
 func main() {

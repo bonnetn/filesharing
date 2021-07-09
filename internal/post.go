@@ -1,4 +1,4 @@
-package endpoint
+package internal
 
 import (
 	"bufio"
@@ -18,7 +18,17 @@ import (
 const fileSizeHeader = "x-filesharing-file-size"
 const formDataPartName = "file_to_upload"
 
-func (m *ConnectionController) Post(ctx context.Context, w http.ResponseWriter, resourceName string, r *http.Request) error {
+type PostOperation struct {
+	repository *ChannelRepository
+}
+
+func NewPostOperation(repository *ChannelRepository) PostOperation {
+	return PostOperation{
+		repository: repository,
+	}
+}
+
+func (o *PostOperation) Post(ctx context.Context, w http.ResponseWriter, resourceName string, r *http.Request) error {
 	log.Printf("POST for %q", resourceName)
 
 	fileSize, err := extractFileSize(r.Header)
@@ -69,7 +79,7 @@ func (m *ConnectionController) Post(ctx context.Context, w http.ResponseWriter, 
 		FileSize: int(fileSize),
 		FileName: filename,
 	}
-	if !m.Repository.Set(resourceName, c) {
+	if !o.repository.Set(resourceName, c) {
 		return &BadRequestError{Err: fmt.Errorf("there is already a file waiting to be downloaded for %q", resourceName)}
 	}
 	return nil

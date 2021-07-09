@@ -1,4 +1,4 @@
-package endpoint
+package internal
 
 import (
 	"bytes"
@@ -13,46 +13,20 @@ import (
 	"syscall"
 )
 
-type syscallOperation = func(func(fd uintptr) bool) error
-
-func doSyscallOperation(method syscallOperation, f func(fd int) error) error {
-	errCh := make(chan error)
-	err := method(func(fd uintptr) bool {
-		callbackErr := f(int(fd))
-		errCh <- callbackErr
-		return true
-	})
-	if err != nil {
-		return err
-	}
-	if <-errCh != nil {
-		return err
-	}
-	return nil
+type GetOperation struct {
+	repository *ChannelRepository
 }
 
-func cleanupPipe(readPipe, writePipe int) {
-	if err := syscall.Close(writePipe); err != nil {
-		log.Printf("Could not close write pipe: %w", err)
-	}
-	log.Printf("cleaned write pipe")
-
-	if err := syscall.Close(readPipe); err != nil {
-		log.Printf("Could not close read pipe: %w", err)
-	}
-	log.Printf("cleaned read pipe")
-}
-
-func closeFd(fd int) {
-	if err := syscall.Close(fd); err != nil {
-		log.Printf("could not close connection: %w", err)
+func NewGetOperation(repository *ChannelRepository) GetOperation {
+	return GetOperation{
+		repository: repository,
 	}
 }
 
-func (m *ConnectionController) Get(ctx context.Context, w http.ResponseWriter, resourceName string) error {
+func (o *GetOperation) Get(ctx context.Context, w http.ResponseWriter, resourceName string) error {
 	log.Printf("GET for %q", resourceName)
 
-	channel, ok := m.Repository.GetAndDelete(resourceName)
+	channel, ok := o.repository.GetAndDelete(resourceName)
 	if !ok {
 		return &BadRequestError{Err: fmt.Errorf("resource %q is not found", resourceName)}
 	}
@@ -123,7 +97,7 @@ func (m *ConnectionController) Get(ctx context.Context, w http.ResponseWriter, r
 			return nil
 		})
 	})
-	if err := g.Wait(); err != nil  {
+	if err := g.Wait(); err != nil {
 		log.Printf("error while transfering: %w", err)
 	}
 	// We can't return any error the the user because we already started transferring things on the connection.
@@ -184,4 +158,40 @@ func splice(from, to, length int) (int64, error) {
 
 	return n, nil
 
+}
+
+type syscallOperation = func(func(fd uintptr) bool) error
+
+func doSyscallOperation(method syscallOperation, f func(fd int) error) error {
+	errCh := make(chan error)
+	err := method(func(fd uintptr) bool {
+		callbackErr := f(int(fd))
+		errCh <- callbackErr
+		return true
+	})
+	if err != nil {
+		return err
+	}
+	if <-errCh != nil {
+		return err
+	}
+	return nil
+}
+
+func cleanupPipe(readPipe, writePipe int) {
+	if err := syscall.Close(writePipe); err != nil {
+		log.Printf("Could not close write pipe: %w", err)
+	}
+	log.Printf("cleaned write pipe")
+
+	if err := syscall.Close(readPipe); err != nil {
+		log.Printf("Could not close read pipe: %w", err)
+	}
+	log.Printf("cleaned read pipe")
+}
+
+func closeFd(fd int) {
+	if err := syscall.Close(fd); err != nil {
+		log.Printf("could not close connection: %w", err)
+	}
 }

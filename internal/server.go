@@ -1,4 +1,4 @@
-package server
+package internal
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"os/signal"
 )
 
-func Run(ctx context.Context, handler http.Handler) error {
+func RunServer(ctx context.Context, handler http.Handler) error {
 	srv := http.Server{
 		Addr:    ":8080",
 		Handler: handler,

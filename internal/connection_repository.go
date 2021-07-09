@@ -1,4 +1,4 @@
-package endpoint
+package internal
 
 import (
 	"sync"
@@ -15,6 +15,10 @@ type ChannelRepository struct {
 	sync.Mutex
 
 	channels map[string]Channel
+}
+
+func NewChannelRepository() ChannelRepository {
+	return ChannelRepository{}
 }
 
 // GetAndDelete retrieves a Channel from the repository and then deletes it.

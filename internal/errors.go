@@ -1,4 +1,4 @@
-package endpoint
+package internal
 
 import "fmt"
 
