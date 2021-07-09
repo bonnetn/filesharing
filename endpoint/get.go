@@ -92,6 +92,14 @@ func (m *ConnectionController) Get(ctx context.Context, w http.ResponseWriter, r
 				}
 				bytesLeft -= int(n)
 			}
+
+			var buf bytes.Buffer
+			buf.WriteString("HTTP/1.1 204 No Content\r\n")
+			buf.WriteString("\r\n")
+			_, err := syscall.Write(uploaderFd, buf.Bytes())
+			if err != nil {
+				return fmt.Errorf("could not write: %w", err)
+			}
 			return nil
 		})
 	})
