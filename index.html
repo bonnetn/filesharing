@@ -4,31 +4,41 @@
     <meta charset="utf-8">
     <title>Share files</title>
 </head>
+<style>
+    #drop_zone {
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        bottom: 0px;
+        left: 0px;
+    }
+
+</style>
 <body>
-<form action="/api/test" method="post" enctype="multipart/form-data">
-    <input type="file" name="myfile">
-</form>
+<div id="upload">
+    <div id="drop_zone">
+        <p>Drag and drop one files to this window or click the button...</p>
+        <form action="/api/test" method="post" enctype="multipart/form-data">
+            <input type="file" name="myfile">
+        </form>
+    </div>
+</div>
 <div id="msg"></div>
 <script type="text/javascript">
     const form = document.querySelector('form')
-    const submit = async () => {
-        const files = document.querySelector('[type=file]').files;
+    const msg = document.querySelector('[id=msg]')
+    const uploadZone = document.querySelector('[id=upload]')
+    const fileChooser = document.querySelector('[type=file]')
+    const dropZone = document.querySelector('[id=drop_zone]')
 
-        console.assert(files.length === 1 || files.length === 0, "unexpected files length" )
-        if(files.length === 0) {
-            console.log("No file selected, will not submit")
-            return
-        }
-        const file = files[0];
+    const submit = async (file) => {
         const {size, name} = file;
 
         console.log(`Uploading ${name}`)
         console.log(`File size: ${size} bytes`);
 
-        const fileChooser = document.querySelector('form')
-        fileChooser.style.visibility='hidden';
+        uploadZone.style.visibility = 'hidden';
 
-        const msg = document.querySelector('[id=msg]')
         const link = window.location.href;
         msg.innerHTML = `Uploading <strong>${name}</strong>... Give this link to your friend: <a href="${link}">${link}</a>`
 
@@ -52,14 +62,41 @@
         }
     }
 
-    const onSubmit = (e) => {
+    fileChooser.onchange = (e) => {
         e.preventDefault()
-        submit()
+
+        const files = fileChooser.files;
+
+        console.assert(files.length === 1 || files.length === 0, "unexpected files length")
+        if (files.length === 0) {
+            console.log("No file selected, will not submit")
+            return
+        }
+        submit(files[0])
     }
 
-    form.addEventListener('submit', e => onSubmit(e))
-    document.querySelector('[type=file]').onchange = () => {
-        submit()
+    dropZone.ondrop = (ev) => {
+        console.log('File(s) dropped');
+        ev.preventDefault();
+        console.log("drop", ev)
+        if (ev.dataTransfer.items) {
+            for (const item of ev.dataTransfer.items) {
+                if (item.kind === 'file') {
+                    const file = item.getAsFile();
+                    submit(file)
+                    return
+                }
+            }
+        } else {
+            for (const file of ev.dataTransfer.files) {
+                submit(file)
+                return
+            }
+        }
+    }
+    dropZone.ondragover = (ev) => {
+        console.log("dragover", ev)
+        ev.preventDefault();
     }
 </script>
 </body>
