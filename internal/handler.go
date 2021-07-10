@@ -20,7 +20,7 @@ func NewHandler(get FileshareGetter, create FileshareCreator, agentMap UserAgent
 		crawlerName, isCrawler := agentMap[r.Header.Get("User-Agent")]
 		if isCrawler {
 			// Rejecting crawlers so they don't "steal" the download.
-			log.Printf("crawler %s detected, rejecting request", crawlerName)
+			log.Printf("crawler %q detected, rejecting request", crawlerName)
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
