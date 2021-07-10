@@ -55,7 +55,7 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 
 	if bytesLeft > 0 {
 		// NOTE: On linux, CopyN will use the "splice" syscall which allows very efficient data transfer between conns.
-		// Using the bufio.Reader and bufio.Writer directly prevent the splicing from happening.
+		// Using the bufio.Reader and bufio.Writer directly would prevent this optimization.
 		_, err = io.CopyN(downloaderConn, fileshare.Conn, bytesLeft)
 		if err != nil {
 			return &LogOnlyError{Err: fmt.Errorf("could not copy data: %v", err)}
