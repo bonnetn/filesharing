@@ -42,8 +42,14 @@
                 'x-filesharing-file-size': size
             }
         })
-        console.log(`Upload is done!`);
-        msg.innerHTML = `Upload is done!`
+        if (result.status === 204) {
+            console.log(`Upload is done!`);
+            msg.innerHTML = `Upload is done!`
+        } else {
+            console.log(`Error while uploading!`);
+            console.log(result)
+            msg.innerHTML = `Error HTTP ${result.status} - ${result.statusText}`
+        }
     }
 
     const onSubmit = (e) => {
