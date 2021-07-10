@@ -6,11 +6,11 @@ COPY ./go.mod ./
 COPY ./main.go ./
 COPY ./internal ./internal
 
-RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build .
+RUN GOOS=linux CGO_ENABLED=1 go build .
 
 FROM alpine:latest
 EXPOSE 8080/tcp
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates libc6-compat
 WORKDIR /root/
 COPY ./favicon.ico ./
 COPY ./index.html ./
