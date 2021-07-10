@@ -17,15 +17,20 @@ func NewHandler(get FileshareGetter, create FileshareCreator) http.Handler {
 		http.ServeFile(w, r, "favicon.ico")
 	})
 	mux.HandleFunc(routeAPI, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("Expires", "0")
 		serveHTTP(get, create, w, r)
 	})
 	return mux
 }
 
 func serveHTTP(get FileshareGetter, create FileshareCreator, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
+	for key, values := range r.Header {
+		log.Printf("HEADER %s == %s", key, strings.Join(values, ";"))
+	}
+
 	path := r.URL.Path
 	resourceName := strings.TrimPrefix(path, routeAPI)
 
