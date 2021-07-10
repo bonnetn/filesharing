@@ -68,7 +68,7 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 		return &LogOnlyError{Err: fmt.Errorf("could not send success response to uploader: %v", err)}
 	}
 
-	if err := readerWriter.Writer.Flush(); err != nil {
+	if err := fileshare.Writer.Flush(); err != nil {
 		return &LogOnlyError{Err: fmt.Errorf("could not flush uploader response: %w", err)}
 	}
 
