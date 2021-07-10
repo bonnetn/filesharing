@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -82,6 +83,9 @@ func transferBufferedBytes(src *bufio.Reader, dst *bufio.Writer, fileSize int64)
 	n, err := dst.ReadFrom(io.LimitReader(src, bytesToTransfer))
 	if err != nil {
 		return n, fmt.Errorf("could not send buffered data: %w", err)
+	}
+	if n != bytesToTransfer {
+		return n, errors.New("could not transmit all the buffer")
 	}
 
 	if err := dst.Flush(); err != nil {
