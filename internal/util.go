@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"net"
@@ -8,17 +9,17 @@ import (
 )
 
 // hijackConnection takes ownership of underlying net.Conn.
-func hijackConnection(w http.ResponseWriter) (net.Conn, error) {
+func hijackConnection(w http.ResponseWriter) (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
-		return nil, errors.New("responseWrite does not support hijack")
+		return nil, nil, errors.New("responseWrite does not support hijack")
 	}
 
-	conn, _, err := hijacker.Hijack()
+	conn, buf, err := hijacker.Hijack()
 	if err != nil {
-		return nil, fmt.Errorf("error while hijacking the connection: %w", err)
+		return nil, nil, fmt.Errorf("error while hijacking the connection: %w", err)
 	}
-	return conn, nil
+	return conn, buf, nil
 }
 
 func extractTCPConn(conn net.Conn) (*net.TCPConn, error) {

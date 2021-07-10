@@ -33,7 +33,7 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 	}
 	defer fileshare.Conn.Close()
 
-	downloaderConn, err := hijackConnection(w)
+	downloaderConn, _, err := hijackConnection(w)
 	if err != nil {
 		return err
 	}
@@ -47,6 +47,12 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 	_, err = tcpDownloaderConn.Write(httpPreludeForFileDownload(fileshare.FileName))
 	if err != nil {
 		return &LogOnlyError{Err: fmt.Errorf("could not send HTTP prelude for file download: %w", err)}
+	}
+
+	// NOTE: Previous connection may have buffered some data, before splicing we should send it.
+	_, err = tcpDownloaderConn.Write(fileshare.BufferedData)
+	if err != nil {
+		return &LogOnlyError{Err: fmt.Errorf("could not send buffered data: %w", err)}
 	}
 
 	// NOTE: On linux, CopyN will use the "splice" syscall which allows very efficient data transfer between conns.

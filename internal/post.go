@@ -48,7 +48,12 @@ func (o *create) Create(ctx context.Context, w http.ResponseWriter, resourceName
 		return &BadRequestError{Err: err}
 	}
 
-	conn, err := hijackConnection(w)
+	conn, readWriter, err := hijackConnection(w)
+	if err != nil {
+		return err
+	}
+
+	bufferedData, err := emptyBufferData(readWriter.Reader)
 	if err != nil {
 		return err
 	}
@@ -68,15 +73,29 @@ func (o *create) Create(ctx context.Context, w http.ResponseWriter, resourceName
 	}
 
 	c := PendingFileshare{
-		Conn:     tcpConn,
-		FileSize: fileSize,
-		FileName: filename,
+		Conn:         tcpConn,
+		BufferedData: bufferedData,
+		FileSize:     fileSize,
+		FileName:     filename,
 	}
 
 	if !o.repository.Set(resourceName, c) {
 		return &LogOnlyError{Err: fmt.Errorf("there is already a resource with name %q", resourceName)}
 	}
 	return nil
+}
+
+func emptyBufferData(reader *bufio.Reader) ([]byte, error) {
+	bufferSize := reader.Buffered()
+	bufferedData := make([]byte, bufferSize)
+	n, err := reader.Read(bufferedData)
+	if err != nil {
+		return nil, fmt.Errorf("could not empty read buffer: %w", err)
+	}
+	if n != bufferSize {
+		return nil, fmt.Errorf("could not read all the buffered data, got %d bytes, expected %d", n, bufferSize)
+	}
+	return bufferedData, nil
 }
 
 // skipBoundary skips the first line of formdata.
