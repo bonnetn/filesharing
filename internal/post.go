@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"mime"
 	"net/http"
@@ -53,30 +52,21 @@ func (o *create) Create(ctx context.Context, w http.ResponseWriter, resourceName
 		return err
 	}
 
-	bufferedData, err := emptyBufferData(readWriter.Reader)
-	if err != nil {
-		return err
-	}
-
-	tcpConn, err := extractTCPConn(conn)
-	if err != nil {
-		return err
-	}
-
-	if err := skipBoundary(tcpConn, boundary); err != nil {
+	if err := skipBoundary(readWriter.Reader, boundary); err != nil {
 		return &LogOnlyError{Err: &BadRequestError{Err: err}}
 	}
 
-	filename, err := skipFormDataHeaders(tcpConn)
+	filename, err := skipFormDataHeaders(readWriter.Reader)
 	if err != nil {
 		return &LogOnlyError{Err: err}
 	}
 
 	c := PendingFileshare{
-		Conn:         tcpConn,
-		BufferedData: bufferedData,
-		FileSize:     fileSize,
-		FileName:     filename,
+		Conn:     conn,
+		Reader:   readWriter.Reader,
+		Writer:   readWriter.Writer,
+		FileSize: fileSize,
+		FileName: filename,
 	}
 
 	if !o.repository.Set(resourceName, c) {
@@ -85,27 +75,14 @@ func (o *create) Create(ctx context.Context, w http.ResponseWriter, resourceName
 	return nil
 }
 
-func emptyBufferData(reader *bufio.Reader) ([]byte, error) {
-	bufferSize := reader.Buffered()
-	bufferedData := make([]byte, bufferSize)
-	n, err := reader.Read(bufferedData)
-	if err != nil {
-		return nil, fmt.Errorf("could not empty read buffer: %w", err)
-	}
-	if n != bufferSize {
-		return nil, fmt.Errorf("could not read all the buffered data, got %d bytes, expected %d", n, bufferSize)
-	}
-	return bufferedData, nil
-}
-
 // skipBoundary skips the first line of formdata.
-func skipBoundary(reader io.Reader, boundary string) error {
-	firstLine, err := readLine(reader)
+func skipBoundary(reader *bufio.Reader, boundary string) error {
+	firstLine, err := reader.ReadString('\n')
 	if err != nil {
 		return fmt.Errorf("couldn't read line: %w", err)
 	}
 
-	if strings.Compare(string(firstLine), "--"+boundary) != 0 {
+	if strings.Compare(firstLine, "--"+boundary+"\r\n") != 0 {
 		return fmt.Errorf("wrong boundary, expected %q, got %q", boundary, string(firstLine))
 	}
 
@@ -113,18 +90,17 @@ func skipBoundary(reader io.Reader, boundary string) error {
 }
 
 // skipFormDataHeaders skips the formdata headers.
-func skipFormDataHeaders(reader io.Reader) (string, error) {
+func skipFormDataHeaders(reader *bufio.Reader) (string, error) {
 	var rawPartHeaders bytes.Buffer
 	for {
-		line, err := readLine(reader)
+		line, err := reader.ReadBytes('\n')
 		if err != nil {
 			return "", fmt.Errorf("couldn't read line: %w", err)
 		}
 
 		rawPartHeaders.Write(line)
-		rawPartHeaders.Write([]byte("\r\n"))
 
-		if len(line) == 0 {
+		if bytes.Compare(line, []byte("\r\n")) == 0 {
 			break
 		}
 	}
@@ -192,28 +168,4 @@ func extractFormDataBoundary(headers http.Header) (string, error) {
 	}
 
 	return boundary, nil
-}
-
-// readLine read a line from the connection without buffering.
-func readLine(reader io.Reader) ([]byte, error) {
-	var (
-		line = make([]byte, 0, 64)
-		c    [1]byte
-	)
-
-	for {
-		n, err := reader.Read(c[:])
-		if err != nil {
-			return nil, fmt.Errorf("could not read byte: %w", err)
-		}
-		if n != 1 {
-			return nil, errors.New("no byte read")
-		}
-
-		line = append(line, c[0])
-
-		if len(line) >= 2 && line[len(line)-2] == '\r' && line[len(line)-1] == '\n' {
-			return line[:len(line)-2], nil
-		}
-	}
 }

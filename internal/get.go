@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -33,40 +34,60 @@ func (o *get) Get(ctx context.Context, w http.ResponseWriter, resourceName strin
 	}
 	defer fileshare.Conn.Close()
 
-	downloaderConn, _, err := hijackConnection(w)
+	downloaderConn, readerWriter, err := hijackConnection(w)
 	if err != nil {
 		return err
 	}
 	defer downloaderConn.Close()
 
-	tcpDownloaderConn, err := extractTCPConn(downloaderConn)
-	if err != nil {
-		return err
-	}
-
-	_, err = tcpDownloaderConn.Write(httpPreludeForFileDownload(fileshare.FileName))
+	_, err = readerWriter.Write(httpPreludeForFileDownload(fileshare.FileName))
 	if err != nil {
 		return &LogOnlyError{Err: fmt.Errorf("could not send HTTP prelude for file download: %w", err)}
 	}
 
-	// NOTE: Previous connection may have buffered some data, before splicing we should send it.
-	_, err = tcpDownloaderConn.Write(fileshare.BufferedData)
+	// Some bytes may are still present in the uploader's Reader buffer, we need to transmit them.
+	n, err := transferBufferedBytes(fileshare.Reader, readerWriter.Writer, fileshare.FileSize)
 	if err != nil {
-		return &LogOnlyError{Err: fmt.Errorf("could not send buffered data: %w", err)}
+		return &LogOnlyError{Err: err}
 	}
 
-	// NOTE: On linux, CopyN will use the "splice" syscall which allows very efficient data transfer between conns.
-	_, err = io.CopyN(tcpDownloaderConn, fileshare.Conn, fileshare.FileSize)
-	if err != nil {
-		return &LogOnlyError{Err: fmt.Errorf("could not copy data: %v", err)}
+	bytesLeft := fileshare.FileSize - n
+
+	if bytesLeft > 0 {
+		// NOTE: On linux, CopyN will use the "splice" syscall which allows very efficient data transfer between conns.
+		// Using the bufio.Reader and bufio.Writer directly prevent the splicing from happening.
+		_, err = io.CopyN(downloaderConn, fileshare.Conn, bytesLeft)
+		if err != nil {
+			return &LogOnlyError{Err: fmt.Errorf("could not copy data: %v", err)}
+		}
 	}
 
-	_, err = fileshare.Conn.Write(httpPayloadForSuccessfulUpload)
+	_, err = fileshare.Writer.Write(httpPayloadForSuccessfulUpload)
 	if err != nil {
 		return &LogOnlyError{Err: fmt.Errorf("could not send success response to uploader: %v", err)}
 	}
 
+	if err := readerWriter.Writer.Flush(); err != nil {
+		return &LogOnlyError{Err: fmt.Errorf("could not flush uploader response: %w", err)}
+	}
+
 	return nil
+}
+
+func transferBufferedBytes(src *bufio.Reader, dst *bufio.Writer, fileSize int64) (int64, error) {
+	bytesToTransfer := int64(src.Buffered())
+	if bytesToTransfer > fileSize {
+		bytesToTransfer = fileSize
+	}
+	n, err := dst.ReadFrom(io.LimitReader(src, bytesToTransfer))
+	if err != nil {
+		return n, fmt.Errorf("could not send buffered data: %w", err)
+	}
+
+	if err := dst.Flush(); err != nil {
+		return n, fmt.Errorf("could not flush bufio: %w", err)
+	}
+	return n, nil
 }
 
 func httpPreludeForFileDownload(filename string) []byte {
