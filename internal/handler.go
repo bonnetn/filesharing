@@ -35,10 +35,6 @@ func serveHTTP(get FileshareGetter, create FileshareCreator, w http.ResponseWrit
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 
-	for key, values := range r.Header {
-		log.Printf("HEADER %s == %s", key, strings.Join(values, ";"))
-	}
-
 	path := r.URL.Path
 	resourceName := strings.TrimPrefix(path, routeAPI)
 
