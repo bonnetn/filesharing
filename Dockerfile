@@ -13,7 +13,6 @@ EXPOSE 8080/tcp
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY ./favicon.ico ./
-COPY ./download.html ./
 COPY ./index.html ./
 COPY --from=builder /go/src/github.com/bonnetn/filesharing/filesharing .
 CMD ["./filesharing"]
