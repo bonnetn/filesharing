@@ -11,12 +11,20 @@ const (
 	routeAPI = "/"
 )
 
-func NewHandler(get FileshareGetter, create FileshareCreator) http.Handler {
+func NewHandler(get FileshareGetter, create FileshareCreator, agentMap UserAgentMap) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "favicon.ico")
 	})
 	mux.HandleFunc(routeAPI, func(w http.ResponseWriter, r *http.Request) {
+		crawlerName, isCrawler := agentMap[r.Header.Get("User-Agent")]
+		if isCrawler {
+			// Rejecting crawlers so they don't "steal" the download.
+			log.Printf("crawler %s detected, rejecting request", crawlerName)
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+
 		serveHTTP(get, create, w, r)
 	})
 	return mux
